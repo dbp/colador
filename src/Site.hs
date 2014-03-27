@@ -7,30 +7,31 @@
 module Site where
 
 ------------------------------------------------------------------------------
-import           Prelude hiding ((++))
-import           Control.Applicative
-import           Data.ByteString (ByteString)
+import Prelude hiding ((++))
+import Control.Applicative
+import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.Text as T
-import           Data.Text (Text)
-import           Snap.Snaplet.PostgresqlSimple
-import           Snap.Core
-import           Snap.Snaplet
-import           Snap.Snaplet.Heist
-import           Heist
-import           Heist.Interpreted
-import           Snap.Util.FileServe
-import           Snap.Snaplet.Groundhog.Postgresql
+import Data.Text (Text)
+import Data.Text.Encoding
+import Snap.Snaplet.PostgresqlSimple
+import Snap.Core
+import Snap.Snaplet
+import Snap.Snaplet.Heist
+import Heist
+import Heist.Interpreted
+import Snap.Util.FileServe
+import Snap.Snaplet.Groundhog.Postgresql
 import qualified Database.Groundhog.TH as TH
-import           Database.Groundhog.Core as GC
-import           Database.Groundhog.Utils 
-import           Database.Groundhog.Utils.Postgresql as GUP
-import           Text.Digestive
-import           Text.Digestive.Snap
-import           Text.Digestive.Heist
+import Database.Groundhog.Core as GC
+import Database.Groundhog.Utils 
+import Database.Groundhog.Utils.Postgresql as GUP
+import Text.Digestive
+import Text.Digestive.Snap
+import Text.Digestive.Heist
 
 ------------------------------------------------------------------------------
-import           Application
+import Application
 
 type EventEntity = Entity (AutoKey Event) Event
 
@@ -61,37 +62,35 @@ eventForm maybeEvent = case maybeEvent of
       <*> requiredTextField "content" _content
       <*> requiredTextField "citation" _citation
 
-userEvent :: Maybe Event -> AppHandler ()
-userEvent maybeEvent = do
-  response <- runForm "new-event" (eventForm maybeEvent)
-  case response of
-    (v, Nothing) -> renderWithSplices "events/new" (digestiveSplices v)
-    (_, Just e) -> do
-      gh $ insert e
-      redirect "/events"
-
-newEventHandler :: AppHandler ()
-newEventHandler = userEvent Nothing
-
 getEvent :: (PersistBackend m) => Int -> m (Maybe Event)
 getEvent eventId = GC.get (GUP.intToKey eventId)
 
 intParam :: MonadSnap m => ByteString -> m (Maybe Int)
 intParam name = fmap (fmap $ read . B8.unpack) (getParam name)
 
-requestedEvent :: (MonadSnap m, HasGroundhogPostgres m) => m (Maybe Event)
-requestedEvent = do
-  maybeEventId <- intParam "id"
-  case maybeEventId of
-    Nothing -> pass
-    Just eventId -> gh $ getEvent eventId
+newEventHandler :: AppHandler ()
+newEventHandler = do
+  response <- runForm "new-event" (eventForm Nothing)
+  case response of
+    (v, Nothing) -> renderWithSplices "events/new" (digestiveSplices v)
+    (_, Just e) -> do
+      gh $ insert e
+      redirect "/events"
 
 editEventHandler :: AppHandler ()
 editEventHandler = do
-  event <- requestedEvent
-  case event of
+  maybeEventId <- intParam "id"
+  case maybeEventId of
     Nothing -> pass
-    Just _e -> userEvent (Just _e)
+    Just eventId -> do
+      let key = (GUP.intToKey eventId)
+      maybeEvent <- gh $ GC.get key
+      response <- runForm "edit-event" (eventForm maybeEvent)
+      case response of
+        (v, Nothing) -> renderWithSplices (encodeUtf8 $ eventEditPath key) (digestiveSplices v)
+        (_, Just e) -> do
+          gh $ replace key e
+          redirect "/events"
 
 getId :: Key Event u -> Int
 getId (EventKey (PersistInt64 _id)) = fromIntegral _id :: Int
