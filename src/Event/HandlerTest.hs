@@ -1,14 +1,25 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, ScopedTypeVariables, NoMonomorphismRestriction #-}
 
 module Event.HandlerTest where
 
 import Prelude hiding ((++))
 import qualified Data.Map as M
 import Control.Monad (void)
+import Control.Monad.Trans
+import qualified Control.Monad.Trans.State as S (get)
+import qualified System.IO.Streams as S (write)
 import Snap.Snaplet.Groundhog.Postgresql hiding (get)
 import Snap.Test.BDD
 import TestCommon
 import Data.Text.Encoding
+import qualified Data.Text as T
+import Data.Text (Text)
+import           Snap.Test (RequestBuilder, getResponseBody)
+import           Snap.Core (Response(..), getHeader)
+import           Snap.Snaplet (Handler, SnapletInit)
+import           Snap.Snaplet.Test (runHandler, evalHandler)
+import           Control.Exception (SomeException, catch)
+import Control.Applicative
 
 import Application
 import Event
@@ -16,12 +27,57 @@ import Event.Digestive
 
 insertEvent = eval $ gh $ insert (Event "Alabaster" "Baltimore" "Crenshaw" (YearRange 1492 1494))
 
+data Html = Html Text | EmptyHtml
+data CssSelector = CssSelector Text
+
+-- stolen from Snap.Test.BDD
+
+writeRes :: TestLog -> SnapTesting b ()
+writeRes log' = do (_,_,out) <- S.get
+                   lift $ S.write (Just log') out
+
+runHandlerSafe :: TestRequest -> Handler b b v -> SnapletInit b b -> IO (Either Text Response)
+runHandlerSafe req site app =
+  catch (runHandler (Just "test") req site app) (\(e::SomeException) -> return $ Left (T.pack $ show e))
+
+-- end stolen
+
+css :: Applicative m => Text -> m CssSelector
+css = pure . CssSelector
+
+should :: SnapTesting state TestLog -> SnapTesting state ()
+should test = do res <- test
+                 writeRes res
+
+haveSelector :: Html -> CssSelector -> TestLog
+haveSelector = undefined
+
+haveText :: Html -> Text -> TestLog
+haveText EmptyHtml _ = TestFail "no html"
+haveText (Html body) match = if T.isInfixOf match body then TestPass "" else TestFail message
+  where
+    message = T.concat ["Expected body to contain \"", match, "\". Actually saw:\n\n", body, "\n\n"]
+
+
+get1 :: Text -> SnapTesting state Html
+get1 path = do
+  (site, app, _) <- S.get
+  res <- liftIO $ runHandlerSafe (get $ encodeUtf8 path) site app
+  case res of
+    Left err -> do
+      writeRes (TestError err)
+      return $ EmptyHtml
+    Right response -> do
+      body <- liftIO $ getResponseBody response
+      return $ Html $ decodeUtf8 body
+
 eventTests :: SnapTesting App ()
 eventTests = cleanup (void $ gh $ deleteAll (undefined :: Event)) $
   do
      it "#index" $ do
        eventKey <- insertEvent
-       contains (get "/events") "<table"
+       -- should $ haveSelector <$> (get1 "/events") <*> css "table.table"
+       should $ haveText <$> get1 "/events" <*> pure "<table"
        contains (get "/events") "<td"
        contains (get "/events") "Alabaster"
        contains (get "/events") "Crenshaw"

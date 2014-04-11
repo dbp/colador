@@ -26,10 +26,10 @@ eventForm maybeEvent = case maybeEvent of
   where
     form (Event _title _content _citation (YearRange _startYear _endYear)) =
       Event <$> requiredTextField "title" _title
-      <*> requiredTextField "content" _content
-      <*> requiredTextField "citation" _citation
-      <*> (YearRange <$> "startYear" .: stringRead "must be a number" (Just _startYear)
-           <*> "endYear" .: stringRead "must be a number" (Just _endYear))
+            <*> requiredTextField "content" _content
+            <*> requiredTextField "citation" _citation
+            <*> (YearRange <$> "startYear" .: stringRead "must be a number" (Just _startYear)
+            <*> "endYear" .: stringRead "must be a number" (Just _endYear))
 
 eventEditPath :: AutoKey Event -> Text
 eventEditPath eventId = (eventPath eventId) ++ "/edit"
