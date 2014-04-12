@@ -62,14 +62,12 @@ should test = do res <- test
                  writeRes res
 
 haveSelector :: Html -> CssSelector -> TestLog
-haveSelector (Html body) (CssSelector selector) =
-    let root = (fromDocument . parseLBS) $ LBS.fromStrict $ encodeUtf8 body
+haveSelector (Html body) (CssSelector selector) = do
+  case cs of
+    [] -> TestFail $ T.concat ["Expected to see something."]
+    _ -> TestPass ""
+  where root = (fromDocument . parseLBS) $ LBS.fromStrict $ encodeUtf8 body
         cs = queryT selector root
-    in
-    case cs of
-      [] -> TestFail $ T.concat ["Expected to see something."]
-      _ -> TestPass ""
-
 
 haveText :: Html -> Text -> TestLog
 haveText EmptyHtml _ = TestFail "no html"
@@ -98,10 +96,9 @@ eventTests = cleanup (void $ gh $ deleteAll (undefined :: Event)) $
        should $ haveSelector <$> (get1 "/events") <*> css [jq| table.table td |]
        should $ haveText <$> get1 "/events" <*> pure "Alabaster"
        should $ haveText <$> get1 "/events" <*> pure "Crenshaw"
-       contains (get "/events") "<td"
        contains (get "/events") "Alabaster"
        contains (get "/events") "Crenshaw"
-       contains (get "/events") "href='/events/new'"
+       should $ haveSelector <$> (get1 "/events") <*> css [jq| a.btn[href='/events/new'] |]
        notcontains (get "/events") "Baltimore"
        contains (get "/events") $ eventEditPath eventKey
      it "#map" $ do
