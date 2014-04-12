@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, ScopedTypeVariables, NoMonomorphismRestriction #-}
+{-# LANGUAGE OverloadedStrings, ScopedTypeVariables, NoMonomorphismRestriction, QuasiQuotes #-}
 
 module Event.HandlerTest where
 
@@ -14,11 +14,23 @@ import TestCommon
 import Data.Text.Encoding
 import qualified Data.Text as T
 import Data.Text (Text)
+
+-- BDD IMPORTS
+
+import Text.XML.Cursor (fromDocument)
 import           Snap.Test (RequestBuilder, getResponseBody)
 import           Snap.Core (Response(..), getHeader)
 import           Snap.Snaplet (Handler, SnapletInit)
 import           Snap.Snaplet.Test (runHandler, evalHandler)
 import           Control.Exception (SomeException, catch)
+import Text.HTML.DOM (parseLBS)
+import qualified Data.ByteString.Lazy as LBS (fromStrict)
+import Text.XML.Scraping (innerHtml)
+import Text.XML.Selector.TH
+import Text.XML.Selector.Types
+  
+-- end BDD IMPORTS
+
 import Control.Applicative
 
 import Application
@@ -28,7 +40,10 @@ import Event.Digestive
 insertEvent = eval $ gh $ insert (Event "Alabaster" "Baltimore" "Crenshaw" (YearRange 1492 1494))
 
 data Html = Html Text | EmptyHtml
-data CssSelector = CssSelector Text
+data CssSelector = CssSelector [JQSelector]
+
+css :: Applicative m => [JQSelector] -> m CssSelector
+css = pure . CssSelector
 
 -- stolen from Snap.Test.BDD
 
@@ -42,15 +57,19 @@ runHandlerSafe req site app =
 
 -- end stolen
 
-css :: Applicative m => Text -> m CssSelector
-css = pure . CssSelector
-
 should :: SnapTesting state TestLog -> SnapTesting state ()
 should test = do res <- test
                  writeRes res
 
 haveSelector :: Html -> CssSelector -> TestLog
-haveSelector = undefined
+haveSelector (Html body) (CssSelector selector) =
+    let root = (fromDocument . parseLBS) $ LBS.fromStrict $ encodeUtf8 body
+        cs = queryT selector root
+    in
+    case cs of
+      [] -> TestFail $ T.concat ["Expected to see something."]
+      _ -> TestPass ""
+
 
 haveText :: Html -> Text -> TestLog
 haveText EmptyHtml _ = TestFail "no html"
@@ -76,8 +95,9 @@ eventTests = cleanup (void $ gh $ deleteAll (undefined :: Event)) $
   do
      it "#index" $ do
        eventKey <- insertEvent
-       -- should $ haveSelector <$> (get1 "/events") <*> css "table.table"
-       should $ haveText <$> get1 "/events" <*> pure "<table"
+       should $ haveSelector <$> (get1 "/events") <*> css [jq| table.table td |]
+       should $ haveText <$> get1 "/events" <*> pure "Alabaster"
+       should $ haveText <$> get1 "/events" <*> pure "Crenshaw"
        contains (get "/events") "<td"
        contains (get "/events") "Alabaster"
        contains (get "/events") "Crenshaw"

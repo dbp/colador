@@ -46,7 +46,9 @@ Executable colador
     digestive-functors,
     digestive-functors-snap,
     digestive-functors-heist,
-    aeson
+    aeson,
+    dom-selector,
+    xml-conduit
 
 
   if flag(old-base)
