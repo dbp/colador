@@ -8,8 +8,8 @@ import qualified Data.ByteString.Char8 as B8
 import Snap.Snaplet
 import Snap.Core
 import Snap.Snaplet.Heist
+import Snap.Snaplet.PostgresqlSimple hiding (Query)
 import Snap.Util.FileServe
-import Snap.Snaplet.Groundhog.Postgresql
 import Event.Site as Event
 
 import Application
@@ -30,6 +30,6 @@ methodWrapper site = do _method <- (>>= readMethod) <$> getParam "_method"
 app :: SnapletInit App App
 app = makeSnaplet "colador" "An event mapping application." Nothing $ do
     h <- nestSnaplet "" heist $ heistInit "templates"
-    g <- nestSnaplet "groundhog" groundhog initGroundhogPostgres
+    g <- nestSnaplet "postgres" postgres pgsInit
     addRoutes Site.routes
     return $ App h g

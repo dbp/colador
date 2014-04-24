@@ -8,15 +8,12 @@ import Data.Aeson
 import qualified Data.ByteString.Char8 as B8
 import Snap.Core
 import Snap.Snaplet.Heist
-import Snap.Snaplet.Groundhog.Postgresql
-import Database.Groundhog.Core as GC
-import Database.Groundhog.Utils
-import Database.Groundhog.Utils.Postgresql as GUP
 import Text.Digestive.Snap (runForm)
 import Text.Digestive.Heist
 
 import Event.Digestive
-import Event
+import Event (Event)
+import qualified Event as E
 import Event.Json
 import Helpers
 
@@ -38,9 +35,8 @@ routes = [("", ifTop $ eventIndexHandler)
 
 eventsHandler :: ByteString -> AppHandler ()
 eventsHandler template =  do
-  events <- gh GC.selectAll
-  let eventEntities = map (uncurry Entity) events
-  renderWithSplices template (eventsSplice eventEntities)
+  events <- E.selectAll
+  renderWithSplices template (eventsSplice events)
 
 eventIndexHandler :: AppHandler ()
 eventIndexHandler = eventsHandler "events/index"
@@ -50,10 +46,9 @@ mapHandler = eventsHandler "events/map"
 
 eventsJsonHandler :: AppHandler ()
 eventsJsonHandler = do
-  events <- gh GC.selectAll
-  let eventEntities = map (uncurry Entity) events
+  events <- E.selectAll
   modifyResponse $ setHeader "Content-Type" "application/json"
-  writeLBS $ encode $ map mapEvent eventEntities
+  writeLBS $ encode $ map mapEvent events
 
 showEventHandler :: AppHandler ()
 showEventHandler = do
@@ -61,7 +56,7 @@ showEventHandler = do
   case maybeEventKey of
     Nothing -> home
     Just eventKey -> do
-      maybeEvent <- gh $ GC.get eventKey
+      maybeEvent <- E.get eventKey
       case maybeEvent of
         Nothing -> home
         Just event -> renderWithSplices "/events/show" $ eventSplice event
@@ -72,7 +67,7 @@ newEventHandler = do
   case response of
     (v, Nothing) -> renderWithSplices "events/form" (digestiveSplices v)
     (_, Just e) -> do
-      gh $ insert e
+      E.insert e
       home
 
 editEventHandler :: AppHandler ()
@@ -81,12 +76,12 @@ editEventHandler = do
   case maybeEventKey of
     Nothing -> home
     Just eventKey -> do
-      maybeEvent <- gh $ GC.get eventKey
-      response <- runForm "edit-event" (eventForm $ maybeEvent)
+      maybeEvent <- E.get eventKey
+      response <- runForm "edit-event" (eventForm $ fmap E.stripId maybeEvent)
       case response of
         (v, Nothing) -> renderWithSplices "events/form" (digestiveSplices v)
         (_, Just e) -> do
-          gh $ replace eventKey e
+          E.replace eventKey e
           home
 
 deleteEventHandler :: AppHandler ()
@@ -95,13 +90,8 @@ deleteEventHandler = do
   case maybeEventKey of
     Nothing -> home
     Just eventKey -> do
-      gh $ deleteBy eventKey
+      E.deleteBy eventKey
       home
 
-readKey :: ByteString -> AutoKey Event
-readKey = GUP.intToKey . read . B8.unpack
-
-eventKeyParam :: MonadSnap m => ByteString -> m (Maybe (AutoKey Event))
-eventKeyParam name = fmap (fmap readKey) (getParam name)
-
-
+eventKeyParam :: MonadSnap m => ByteString -> m (Maybe Int)
+eventKeyParam name = fmap (fmap (read . B8.unpack)) (getParam name)

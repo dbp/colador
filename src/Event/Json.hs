@@ -4,11 +4,15 @@ module Event.Json where
 
 import Data.Text (Text)
 import Data.Aeson.TH
-import Database.Groundhog.Utils
 import Event
 
-mapEvent :: EventEntity -> MapEvent
-mapEvent (Entity key (Event title' _ _ (YearRange startYear' endYear'))) = MapEvent (getId key) title' "/static/nature2.gif" (fromIntegral $ getId key) (fromIntegral $ getId key) startYear' endYear'
+-- NOTE(dbp 2014-04-23): In theory, this distinction is now irrelevant.
+-- The only problem is that I doubt deriveJSON will work as-is.
+mapEvent :: Event -> MapEvent
+mapEvent (Event key title' _ _ startYear' endYear') =
+  MapEvent key title' "/static/nature2.gif"
+           (fromIntegral key) (fromIntegral key)
+           startYear' endYear'
 
 data MapEvent = MapEvent {
   id :: Int,

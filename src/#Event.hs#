@@ -10,8 +10,6 @@ import Data.Maybe (listToMaybe, fromMaybe)
 import Control.Monad (void)
 import Control.Applicative ((<$>))
 
-import Karamaan.Opaleye.Manipulation ()
-
 import Opaleye
 -- NOTE(dbp 2014-04-23): API weakness that there is a distinction between Expr and Query...
 import qualified Karamaan.Opaleye.ExprArr as E (constant, eq)

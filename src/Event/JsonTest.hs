@@ -3,7 +3,6 @@ module Event.JsonTest where
 
 import Data.Aeson
 import Snap.Test.BDD
-import Database.Groundhog.Utils
 import Test.Common
 import Control.Applicative
 import Application
@@ -14,7 +13,7 @@ import Event.Json
 eventJsonTests :: SnapTesting App ()
 eventJsonTests = do
   it "produces JSON" $ do
-    let mapEvent' = mapEvent (Entity (makeId 1) (Event "Alabaster" "Baltimore" "Crenshaw" (YearRange 1492 1494)))
+    let mapEvent' = mapEvent (Event 1 "Alabaster" "Baltimore" "Crenshaw" 1492 1494)
         jsonObject = object ["startYear" .= (1492 :: Int),
                              "y".= (1 :: Int),
                              "x".= (1 :: Int),

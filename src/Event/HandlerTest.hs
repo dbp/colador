@@ -5,19 +5,19 @@ module Event.HandlerTest where
 import Prelude hiding ((++))
 import qualified Data.Map as M
 import Control.Monad (void)
-import Snap.Snaplet.Groundhog.Postgresql hiding (get)
 import Snap.Test.BDD
 import Test.Common
 import Control.Applicative
 
 import Application
-import Event
+import Event (Event'(..), Event)
+import qualified Event as E
 import Event.Digestive
 
-insertEvent = eval $ gh $ insert (Event "Alabaster" "Baltimore" "Crenshaw" (YearRange 1492 1494))
+insertEvent = eval $ E.insert (Event () "Alabaster" "Baltimore" "Crenshaw" 1492 1494)
 
 eventTests :: SnapTesting App ()
-eventTests = cleanup (void $ gh $ deleteAll (undefined :: Event)) $
+eventTests = cleanup (E.deleteAll (undefined :: Event)) $
   do
      it "#index" $ do
        eventKey <- insertEvent
@@ -54,23 +54,23 @@ eventTests = cleanup (void $ gh $ deleteAll (undefined :: Event)) $
        should $ haveText <$> (get editPath)  <*> val "Crenshaw"
        it "#update" $ do
          changes (0 +)
-           (gh $ countAll (undefined :: Event))
+           E.countAll
            (post editPath $ params [("new-event.title", "a"),
                                     ("new-event.content", "b"),
                                     ("new-event.citation", "c")])
      it "#create" $ do
        changes (1 +)
-         (gh $ countAll (undefined :: Event))
+         E.countAll
          (post "/events/new" $ params [("new-event.title", "a"),
                                        ("new-event.content", "b"),
                                        ("new-event.citation", "c")])
      it "#deletes" $ do
        eventKey <- insertEvent
        changes (-1 +)
-         (gh $ countAll (undefined :: Event))
+         E.countAll
          (post (eventPath eventKey) $ params [("_method", "DELETE")])
      it "validates presence of title, content and citation" $ do
-       let expectedEvent = Event "a" "b" "c" (YearRange 1200 1300)
+       let expectedEvent = Event () "a" "b" "c" 1200 1300
        form (Value expectedEvent) (eventForm Nothing) $
          M.fromList [("title", "a"), ("content", "b"), ("citation", "c"),
                      ("startYear", "1200"), ("endYear", "1300")]
